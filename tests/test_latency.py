@@ -47,7 +47,15 @@ def test_percentile():
     assert latency.percentile([float(v) for v in range(1, 101)], 95) == pytest.approx(95.05)
 
 
-@pytest.mark.parametrize("fmt,rate", [("pcm16", 16000), ("pcmu", 8000)])
+def test_report_gives_each_clip_its_own_percentiles(capsys):
+    rows = [{"turn_ms": t, "text_ms": t, "audio_ms": t + 150, "rtt_ms": 40, "marker_ms": 600} for t in (600, 610, 900)]
+    latency.report(rows, ["a.wav", "a.wav", "b.wav"])
+    out = capsys.readouterr().out
+    assert "\na.wav\n p50       605" in out
+    assert "\nb.wav\n p50       900" in out
+
+
+@pytest.mark.parametrize("fmt,rate",[("pcm16", 16000), ("pcmu", 8000)])
 async def test_measures_the_fake_servers_schedule(tmp_path, fmt, rate):
     clip = load_clip(tone(tmp_path / "t.wav", rate))
     async with Fake() as fake:
@@ -59,6 +67,7 @@ async def test_measures_the_fake_servers_schedule(tmp_path, fmt, rate):
     assert row["audio_ms"] == pytest.approx(fake.hangover_ms + fake.audio_after_ms, abs=TOLERANCE_MS)
     assert turn.reply == "Friday at seven works."
     assert turn.audio_end_ms == pytest.approx(500 + 1000, abs=40)  # lead silence plus the tone
+    assert row["marker_ms"] == pytest.approx(0, abs=40)  # the fake marks the real end; the real server doesn't
     assert fake.session["audio"]["input"]["format"]["type"] == {"pcm16": "audio/pcm", "pcmu": "audio/pcmu"}[fmt]
     assert fake.session["output_modalities"] == ["audio"]
 

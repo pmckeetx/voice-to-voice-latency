@@ -28,5 +28,7 @@ URL = os.environ.get("DIALOG_REALTIME_URL", latency.DEFAULT_URL)
 async def test_one_turn(clip, fmt):
     turn = await latency.measure(URL, os.environ["POLY_API_KEY"], load_clip(ROOT / clip), fmt, text_only=False)
     row = turn.row()
-    assert 0 < row["turn_ms"] < row["text_ms"] <= row["audio_ms"] < 5000
+    # The first text often lands in the same millisecond as speech_stopped, so <= throughout.
+    assert 0 < row["turn_ms"] <= row["text_ms"] <= row["audio_ms"] < 5000
+    assert row["marker_ms"] is not None
     assert turn.reply.strip()

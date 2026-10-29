@@ -46,6 +46,7 @@ class Turn:
     first_text: float | None = None
     first_audio: float | None = None
     audio_end_ms: int | None = None  # where the server says the speech ended, in audio time
+    speech_end_audio_ms: float | None = None  # where it really ended, in the same audio time
     reply: str = ""
 
     def ms(self, mark: float | None) -> float | None:
@@ -54,11 +55,15 @@ class Turn:
         return round((mark - self.speech_end) * 1000)
 
     def row(self) -> dict:
+        marker = None
+        if self.audio_end_ms is not None and self.speech_end_audio_ms is not None:
+            marker = round(self.audio_end_ms - self.speech_end_audio_ms)
         return {
             "turn_ms": self.ms(self.speech_stopped),
             "text_ms": self.ms(self.first_text),
             "audio_ms": self.ms(self.first_audio),
             "rtt_ms": round(self.rtt * 1000),
+            "marker_ms": marker,  # how far past the real end of the speech audio_end_ms landed
         }
 
 
@@ -67,6 +72,7 @@ async def stream(ws, clip: Clip, encode, turn: Turn, done: asyncio.Event):
     lead = frames(silence(clip.rate, LEAD_S), clip.rate, FRAME_MS)
     audio = lead + frames(clip.samples, clip.rate, FRAME_MS)
     last_speech = len(lead) + int(clip.speech_end * 1000) // FRAME_MS
+    turn.speech_end_audio_ms = (LEAD_S + clip.speech_end) * 1000
     quiet = silence(clip.rate, FRAME_MS / 1000)
 
     start = time.perf_counter()
@@ -139,14 +145,25 @@ def percentile(values: list[float], p: int) -> float:
     return statistics.quantiles(values, n=100, method="inclusive")[p - 1]
 
 
-def report(rows: list[dict]):
-    cols = ["turn_ms", "text_ms", "audio_ms", "rtt_ms"]
-    print(f"{'run':>4} " + " ".join(f"{c:>9}" for c in cols))
-    for n, row in enumerate(rows, 1):
-        print(f"{n:>4} " + " ".join(f"{'-' if row[c] is None else row[c]:>9}" for c in cols))
+COLS = ["turn_ms", "text_ms", "audio_ms", "rtt_ms", "marker_ms"]
+
+
+def percentiles(rows: list[dict]):
     for p in (50, 95):
-        values = [[r[c] for r in rows if r[c] is not None] for c in cols]
+        values = [[r[c] for r in rows if r[c] is not None] for c in COLS]
         print(f"{'p' + str(p):>4} " + " ".join(f"{round(percentile(v, p)) if v else '-':>9}" for v in values))
+
+
+def report(rows: list[dict], clips: list[str]):
+    """Every turn, then the percentiles over all of them, then per clip: one slow clip can own the tail."""
+    print(f"{'run':>4} " + " ".join(f"{c:>9}" for c in COLS))
+    for n, row in enumerate(rows, 1):
+        print(f"{n:>4} " + " ".join(f"{'-' if row[c] is None else row[c]:>9}" for c in COLS))
+    percentiles(rows)
+    if len(set(clips)) > 1:
+        for name in dict.fromkeys(clips):
+            print(f"\n{name}")
+            percentiles([r for r, c in zip(rows, clips) if c == name])
 
 
 async def main():
@@ -161,7 +178,7 @@ async def main():
     args = parser.parse_args()
 
     key = os.environ.get("POLY_API_KEY") or parser.error("set POLY_API_KEY in .env or the shell")
-    rows, turns = [], []
+    rows, names, turns = [], [], []
     for path in args.clips:
         clip = load_clip(path)
         if (need := FORMATS[args.format][1]) and clip.rate != need:
@@ -169,10 +186,11 @@ async def main():
         for _ in range(args.runs):
             turn = await measure(args.url, key, clip, args.format, args.text)
             rows.append(turn.row())
+            names.append(clip.path.name)
             turns.append({"clip": str(path), **asdict(turn), **turn.row()})
             print(f"{clip.path.name}: {turn.row()} {turn.reply!r}", flush=True)
     print()
-    report(rows)
+    report(rows, names)
     if args.json:
         os.makedirs(os.path.dirname(args.json) or ".", exist_ok=True)
         with open(args.json, "w") as f:
