@@ -11,9 +11,12 @@ The walkthrough is the post: [How to measure voice-to-voice latency in a realtim
    1       637       641       787        48
    2       667       668       814        47
  ...
- p50       ...
- p95       ...
+ p50       682       702       860        46
+ p95       736       950      1089        51
 ```
+
+That's 30 turns from the three sample callers, 16 kHz PCM in and server voice out, run against
+`wss://api.studio.poly.ai/v1/realtime` from the US Midwest on 29 October 2026.
 
 `turn_ms` is when the server confirmed the end of the turn (`input_audio_buffer.speech_stopped`), `text_ms`
 the first reply text, and `audio_ms` the first reply audio, each counted from the end of the caller's speech.
