@@ -174,6 +174,7 @@ async def main():
     print()
     report(rows)
     if args.json:
+        os.makedirs(os.path.dirname(args.json) or ".", exist_ok=True)
         with open(args.json, "w") as f:
             json.dump({"url": args.url, "format": args.format, "turns": turns}, f, indent=2)
 
