@@ -7,12 +7,12 @@ speed and times every turn on one clock, in the client.
 The walkthrough is the post: [How to measure voice-to-voice latency in a realtime voice agent](POST_URL).
 
 ```text
- run   turn_ms   text_ms  audio_ms    rtt_ms
-   1       637       641       787        48
-   2       667       668       814        47
+ run   turn_ms   text_ms  audio_ms    rtt_ms marker_ms
+   1       649       781       923        48       573
+   2       544       545       698        51       445
  ...
- p50       682       702       860        46
- p95       736       950      1089        51
+ p50       648       651       812        47       558
+ p95       743       936      1076        51       662
 ```
 
 That's 30 turns from the three sample callers, 16 kHz PCM in and server voice out, run against
@@ -20,7 +20,11 @@ That's 30 turns from the three sample callers, 16 kHz PCM in and server voice ou
 
 `turn_ms` is when the server confirmed the end of the turn (`input_audio_buffer.speech_stopped`), `text_ms`
 the first reply text, and `audio_ms` the first reply audio, each counted from the end of the caller's speech.
-`rtt_ms` is a WebSocket ping, so you can tell network time from server time.
+`rtt_ms` is a WebSocket ping, so you can tell network time from server time. `marker_ms` is how far past the real
+end of the speech the server's `audio_end_ms` landed, in audio time. With more than one clip, the table also
+prints the percentiles for each clip, since one slow caller can own the whole tail.
+
+The tool doesn't handle tool calls: it stops at the first `response.done` and never sends a `function_call_output`.
 
 ## Prerequisites
 
