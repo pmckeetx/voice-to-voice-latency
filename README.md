@@ -4,7 +4,7 @@ Measure how long a realtime voice agent takes to answer, from the moment the cal
 first audio of the reply. It streams a recorded caller to an OpenAI-Realtime-compatible WebSocket at real
 speed and times every turn on one clock, in the client.
 
-The walkthrough is the post: [How to measure voice-to-voice latency in a realtime voice agent](POST_URL).
+The walkthrough is the post: [How to measure voice-to-voice latency in a realtime voice agent](https://www.petermckee.dev/blog/how-to-measure-voice-to-voice-latency-in-a-realtime-voice-agent).
 
 ```text
  run   turn_ms   text_ms  audio_ms    rtt_ms marker_ms
